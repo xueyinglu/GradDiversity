@@ -2,14 +2,13 @@ import numpy as np
 from algorithms.classifiers.loss_grad_logistic import *
 from algorithms.classifiers.loss_grad_softmax import *
 from algorithms.classifiers.loss_grad_svm import *
-
 class LinearClassifier:
 
     def __init__(self):
         self.W = None # set up the weight matrix 
 
     def train(self, X, y, method='sgd', batch_size=200, learning_rate=1e-4,
-              reg = 1e3, num_iters=1000, verbose=False, vectorized=True):
+              reg = 1e3, num_iters=1000, verbose=False, vectorized=True, shuffle =True):
         """
         Train linear classifer using batch gradient descent or stochastic gradient descent
 
@@ -35,20 +34,32 @@ class LinearClassifier:
         if self.W is None:
             # initialize the weights with small values
             if num_classes == 2: # just need weights for one class
-                self.W = np.random.randn(1, dim) * 0.001
+                #self.W = np.random.randn(1, dim) * 0.001
+                self.W = np.zeros((1,dim))
+                print("weight initialization={}".format(self.W))
             else: # weigths for each class
                 self.W = np.random.randn(num_classes, dim) * 0.001
 
         losses_history = []
-
+        weight_history = []
         for i in range(num_iters):
             if method == 'bgd':
                 loss, grad = self.loss_grad(X, y, reg, vectorized)
-            else:
+            elif shuffle == True:
                 # randomly choose a min-batch of samples
                 idxs = np.random.choice(num_train, batch_size, replace=False)
                 loss, grad = self.loss_grad(X[:, idxs], y[idxs], reg, vectorized) # grad => [K x D]
+            else:
+                start_idx = (i*batch_size) % num_train
+                if start_idx+batch_size <= num_train:
+                    loss, grad = self.loss_grad(X[:, start_idx:start_idx+batch_size], y[start_idx:start_idx+batch_size], reg, vectorized)
+                else:
+                    idxs =np.r_[0:start_idx+batch_size-num_train, start_idx:]
+                    loss, grad = self.loss_grad(X[:, idxs], y[idxs], reg, vectorized) # grad => [K x D]
             losses_history.append(loss)
+            weight_history.append(self.W.copy())
+
+
 
             # update weights
             self.W -= learning_rate * grad # [K x D]
@@ -57,7 +68,7 @@ class LinearClassifier:
             if verbose and (i % 100 == 0):
                 print( 'iteration %d/%d: loss %f' % (i, num_iters, loss))
 
-        return losses_history
+        return losses_history,weight_history
 
     def predict(self, X):
         """
